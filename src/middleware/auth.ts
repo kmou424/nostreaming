@@ -7,48 +7,50 @@ const BearerTokenPrefix = "Bearer ";
 /**
  * Authentication middleware for Bearer token authentication
  */
-export const AuthMiddleware = new Elysia({ name: "auth" }).onBeforeHandle(
-  async ({ headers, set }) => {
-    const authHeader = headers.authorization || headers.Authorization;
+export const AuthMiddleware = new Elysia({ name: "auth" }).onRequest(
+  async ({ request, set }) => {
+    const headers = request.headers;
+    const authHeader =
+      headers.get("Authorization") || headers.get("authorization");
     if (!authHeader) {
-      logger.warn("Missing Authorization header");
-      set.status = 401;
-      return {
-        error: {
-          message:
-            "Missing Authorization header. Please provide a Bearer token in the Authorization header.",
-          type: "authentication_error",
-        },
-      };
+      return new Response(
+        JSON.stringify({
+          error: {
+            message: "Missing Authorization header",
+            type: "authentication_error",
+          },
+        }),
+        { status: 401 }
+      );
     }
 
     if (!authHeader.startsWith(BearerTokenPrefix)) {
-      logger.warn("Invalid Authorization header format", {
-        header: authHeader.substring(0, 20) + "...",
-      });
-      set.status = 401;
-      return {
-        error: {
-          message:
-            "Invalid Authorization header format. Expected 'Bearer <token>'.",
-          type: "authentication_error",
-        },
-      };
+      return new Response(
+        JSON.stringify({
+          error: {
+            message: "Invalid Authorization header format",
+            type: "authentication_error",
+          },
+        }),
+        { status: 401 }
+      );
     }
 
-    const token = authHeader.substring(BearerTokenPrefix.length).trim();
+    const token = authHeader.slice(BearerTokenPrefix.length).trim();
 
     if (!isValidKey(token)) {
       logger.warn("Invalid API key", {
-        keyPrefix: token.substring(0, 8) + "...",
+        keyPrefix: token.slice(0, 8) + "...",
       });
-      set.status = 401;
-      return {
-        error: {
-          message: "Invalid API key provided.",
-          type: "authentication_error",
-        },
-      };
+      return new Response(
+        JSON.stringify({
+          error: {
+            message: "Invalid API key",
+            type: "authentication_error",
+          },
+        }),
+        { status: 401 }
+      );
     }
 
     logger.debug("Authentication successful", {
