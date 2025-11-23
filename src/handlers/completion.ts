@@ -71,14 +71,44 @@ async function createFakeStream(
   const tempId = `chatcmpl-${Date.now()}`;
   const tempCreated = Math.floor(Date.now() / 1000);
 
+  // Shared state for cleanup
+  let fakeStreamTimer: ReturnType<typeof setInterval> | null = null;
+  let isCancelled = false;
+
   return new ReadableStream({
     async start(controller) {
-      let fakeStreamTimer: ReturnType<typeof setInterval> | null = null;
       let isCompleted = false;
+
+      // Helper function to safely enqueue data
+      const safeEnqueue = (data: Uint8Array): boolean => {
+        if (isCompleted || isCancelled) {
+          return false;
+        }
+        try {
+          controller.enqueue(data);
+          return true;
+        } catch (error) {
+          // Controller might be closed by client
+          if (error instanceof TypeError && error.message.includes("closed")) {
+            isCancelled = true;
+            logger.debug("Client disconnected, controller closed", {
+              model: request.model,
+            });
+            return false;
+          }
+          throw error;
+        }
+      };
 
       // Send empty data packet (OpenAI SSE format)
       const sendEmptyData = () => {
-        if (isCompleted) return;
+        if (isCompleted || isCancelled) {
+          if (fakeStreamTimer) {
+            clearInterval(fakeStreamTimer);
+            fakeStreamTimer = null;
+          }
+          return;
+        }
         // Send empty content data packet in OpenAI streaming format
         const emptyData = `data: ${JSON.stringify({
           id: tempId,
@@ -95,10 +125,11 @@ async function createFakeStream(
             },
           ],
         })}\n\n`;
-        controller.enqueue(encoder.encode(emptyData));
-        logger.debug("Sent empty data packet (keep-alive)", {
-          model: request.model,
-        });
+        if (safeEnqueue(encoder.encode(emptyData))) {
+          logger.debug("Sent empty data packet (keep-alive)", {
+            model: request.model,
+          });
+        }
       };
 
       // Start sending empty data packets periodically
@@ -122,14 +153,24 @@ async function createFakeStream(
             messageCount: request.messages.length,
             error: err?.message,
           });
-          const errorData = `data: ${JSON.stringify({
-            error: {
-              message: err?.message ?? "Unknown error",
-              type: "completion_error",
-            },
-          })}\n\n`;
-          controller.enqueue(encoder.encode(errorData));
-          controller.close();
+          if (!isCancelled) {
+            const errorData = `data: ${JSON.stringify({
+              error: {
+                message: err?.message ?? "Unknown error",
+                type: "completion_error",
+              },
+            })}\n\n`;
+            if (safeEnqueue(encoder.encode(errorData))) {
+              try {
+                controller.close();
+              } catch (closeError) {
+                // Ignore close errors if already closed
+                logger.debug("Controller already closed", {
+                  model: request.model,
+                });
+              }
+            }
+          }
           return;
         }
 
@@ -143,6 +184,14 @@ async function createFakeStream(
           completionTokens: response.usage.completion_tokens,
           totalTokens: response.usage.total_tokens,
         });
+
+        // Check if client disconnected before sending response
+        if (isCancelled) {
+          logger.debug("Client disconnected before sending response", {
+            model: request.model,
+          });
+          return;
+        }
 
         // Send initial chunk with role (if present)
         const firstChoice = response.choices[0];
@@ -162,7 +211,9 @@ async function createFakeStream(
               },
             ],
           })}\n\n`;
-          controller.enqueue(encoder.encode(roleChunk));
+          if (!safeEnqueue(encoder.encode(roleChunk))) {
+            return;
+          }
         }
 
         // Send content chunk with full content
@@ -180,7 +231,9 @@ async function createFakeStream(
             finish_reason: null,
           })),
         })}\n\n`;
-        controller.enqueue(encoder.encode(contentChunk));
+        if (!safeEnqueue(encoder.encode(contentChunk))) {
+          return;
+        }
 
         // Send final chunk with finish_reason
         const finalChunk = `data: ${JSON.stringify({
@@ -194,12 +247,23 @@ async function createFakeStream(
             finish_reason: choice.finish_reason,
           })),
         })}\n\n`;
-        controller.enqueue(encoder.encode(finalChunk));
+        if (!safeEnqueue(encoder.encode(finalChunk))) {
+          return;
+        }
 
         // Send [DONE] marker
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        if (!safeEnqueue(encoder.encode("data: [DONE]\n\n"))) {
+          return;
+        }
         isCompleted = true;
-        controller.close();
+        try {
+          controller.close();
+        } catch (closeError) {
+          // Ignore close errors if already closed
+          logger.debug("Controller already closed", {
+            model: request.model,
+          });
+        }
       } catch (error) {
         // Stop sending empty data packets on error
         if (fakeStreamTimer) {
@@ -212,15 +276,36 @@ async function createFakeStream(
           messageCount: request.messages.length,
           error: error instanceof Error ? error.message : String(error),
         });
-        const errorData = `data: ${JSON.stringify({
-          error: {
-            message: error instanceof Error ? error.message : String(error),
-            type: "completion_error",
-          },
-        })}\n\n`;
-        controller.enqueue(encoder.encode(errorData));
-        controller.close();
+        if (!isCancelled) {
+          const errorData = `data: ${JSON.stringify({
+            error: {
+              message: error instanceof Error ? error.message : String(error),
+              type: "completion_error",
+            },
+          })}\n\n`;
+          if (safeEnqueue(encoder.encode(errorData))) {
+            try {
+              controller.close();
+            } catch (closeError) {
+              // Ignore close errors if already closed
+              logger.debug("Controller already closed", {
+                model: request.model,
+              });
+            }
+          }
+        }
       }
+    },
+    cancel() {
+      // Handle client disconnection
+      isCancelled = true;
+      if (fakeStreamTimer) {
+        clearInterval(fakeStreamTimer);
+        fakeStreamTimer = null;
+      }
+      logger.debug("Client disconnected, stream cancelled", {
+        model: request.model,
+      });
     },
   });
 }
