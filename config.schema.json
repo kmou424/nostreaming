@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NoStreaming Configuration Schema",
+  "description": "JSON Schema for validating config.toml configuration file",
+  "type": "object",
+  "required": ["app"],
+  "properties": {
+    "app": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "Server host address",
+          "default": "0.0.0.0"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Server port number",
+          "minimum": 1,
+          "default": 3000
+        },
+        "fakeStreamInterval": {
+          "type": "integer",
+          "description": "Fake-streaming empty data packet interval in milliseconds",
+          "minimum": 100,
+          "default": 500
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "API keys for Bearer token authentication. If not configured or empty, all requests will be rejected.",
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "logging": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"],
+          "description": "Logging level",
+          "default": "info"
+        }
+      },
+      "additionalProperties": false
+    },
+    "providers": {
+      "type": "object",
+      "description": "Provider configurations",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type", "endpoint", "api_key"],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the provider is enabled",
+            "default": true
+          },
+          "type": {
+            "type": "string",
+            "enum": ["openai"],
+            "description": "Provider type (currently only 'openai' is supported)"
+          },
+          "endpoint": {
+            "type": "string",
+            "format": "uri",
+            "description": "Provider API endpoint URL"
+          },
+          "api_key": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Provider API key"
+          },
+          "filter": {
+            "type": "object",
+            "description": "Model filter configuration",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["whitelist", "blacklist"],
+                "description": "Filter mode: 'whitelist' returns intersection of upstream models and filter.models, 'blacklist' removes filter.models from upstream models"
+              },
+              "models": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "List of model IDs to filter"
+              }
+            },
+            "required": ["mode", "models"],
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,34 @@
+---
+alwaysApply: true
+---
+
+# Development Rules & Specifications
+
+## Tech Stack
+
+- **Runtime**: Bun
+- **HTTP Framework**: Elysia
+- **Database**: Bun native SQLite (`bun:sqlite`)
+- **Configuration**: TOML
+- **Frontend**: React + Refine
+
+## Architecture
+
+- **Backend Pattern**: Domain-Driven Design (DDD)
+
+## Project Goal
+
+Build a universal LLM API reverse proxy tool that:
+
+- Supports upstream providers like OpenAI, Google AI Studio, etc.
+- Exposes an OpenAI-compatible interface.
+- **Pseudo-Streaming Strategy**:
+  - Clients connect via streaming (SSE).
+  - Backend requests to upstream are _non-streaming_.
+  - Backend sends SSE keep-alive packets to the frontend while waiting for the full upstream response.
+  - Once upstream responds, the full content is streamed to the client.
+
+## Development Philosophy
+
+- **Restrained Coding**: Implement _only_ what is explicitly requested. Do not over-engineer or add unrequested features.
+- **Simplicity**: Prefer simple, native solutions (e.g., Bun's built-in tools) over complex external dependencies where possible.

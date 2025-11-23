@@ -1,0 +1,18 @@
+[app]
+host = "0.0.0.0"
+port = 3000
+keys = ["sk-XXXXX"]
+fakeStreamInterval = 500
+
+[logging]
+level = "info"
+
+[providers.my-openai]
+enabled = false
+type = "openai"
+endpoint = "https://api.openai.com/v1"
+api_key = "sk-proj-1234567890"
+
+[providers.my-openai.filter]
+mode = "whitelist"
+models = ["gpt-4o", "gpt-4o-mini"]

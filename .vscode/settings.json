@@ -1,0 +1,6 @@
+{
+  "evenBetterToml.schema.associations": {
+    "*config.toml": "file://config.schema.json",
+    "*config.toml.example": "file://config.schema.json"
+  }
+}

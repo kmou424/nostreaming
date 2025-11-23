@@ -1,0 +1,46 @@
+# Dependencies
+node_modules
+
+# Build outputs
+out
+dist
+*.tgz
+nostreaming
+
+# Development files
+.vscode
+.idea
+*.log
+*.lcov
+coverage
+report.*.json
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+*.md
+
+# Config (should be mounted as volume)
+config.toml
+
+# Schema (not needed at runtime)
+config.schema.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache
+*.tsbuildinfo
+.eslintcache
+
