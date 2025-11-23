@@ -86,9 +86,13 @@ export const ChatCompletionsRequestSchema = z.object({
 export const ChatChoiceSchema = z.object({
   index: z.number().int(),
   message: ChatMessageSchema,
-  finish_reason: z
-    .enum(["stop", "length", "function_call", "tool_calls", "content_filter"])
-    .nullable(),
+  finish_reason: z.preprocess((val) => {
+    // Convert to lowercase if it's a string, otherwise return as-is (for null)
+    if (typeof val === "string") {
+      return val.toLowerCase();
+    }
+    return val;
+  }, z.enum(["stop", "length", "function_call", "tool_calls", "content_filter"]).nullable()),
 });
 
 export const UsageSchema = z.object({
