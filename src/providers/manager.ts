@@ -83,26 +83,30 @@ class ProviderManagerImpl {
         );
       }
 
-      // Get models from cache (created during create())
+      this.clients.set(name, client);
+
+      // Use refreshModels logic to fetch, filter and register models
+      // Remove existing models first (safe even if none exist)
+      this.removeModels(name);
       let models: ModelsList | null | undefined;
-      ({ models, err } = await client.models());
-      if (models && !err) {
-        // Apply filter and register models
-        const filteredModels = this.applyFilter(name, models);
-        this.registerModels(name, filteredModels);
-      } else {
-        logger.warn("[Provider] Failed to get models for registration", {
+      ({ models, err } = await this.refreshModels(name));
+      if (err) {
+        logger.error("[Provider] Failed to initialize models", {
           name,
-          error: err?.message,
+          error: err.message,
         });
+        return Result<void>(
+          new Error(
+            `Failed to initialize models for provider "${name}": ${
+              err.message ?? "Unknown error"
+            }`
+          )
+        );
       }
 
-      this.clients.set(name, client);
       logger.info("[Provider] Initialized", {
         name,
-        modelCount: Array.from(this.modelAliasesMapping.values()).filter(
-          (p) => p === name
-        ).length,
+        modelCount: models?.length ?? 0,
       });
     }
 
@@ -143,6 +147,14 @@ class ProviderManagerImpl {
       });
       return Result<ModelsList>(err || new Error("Failed to refresh models"));
     }
+
+    // Log upstream models
+    const upstreamModelIds = models.map((model) => model.id);
+    logger.info("Upstream models", {
+      name,
+      modelCount: models.length,
+      models: upstreamModelIds,
+    });
 
     // Apply filter if configured
     const originalCount = models.length;
@@ -232,11 +244,14 @@ class ProviderManagerImpl {
       // Apply filter using FilterUtil
       const filtered = FilterUtil.apply(models, filterModelIds, filter.mode);
 
-      logger.debug(`Applied ${filter.mode} filter`, {
+      // Log filtered models
+      const filteredModelIds = filtered.map((model) => model.id);
+      logger.info(`Applied ${filter.mode} filter`, {
         providerName,
         upstreamCount: models.length,
         filterCount: filter.models.length,
         filteredCount: filtered.length,
+        filteredModels: filteredModelIds,
       });
 
       return filtered;
