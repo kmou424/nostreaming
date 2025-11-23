@@ -1,10 +1,11 @@
 import axios, { type AxiosInstance } from "axios";
 import { logger } from "../../logger";
-import type {
-  ChatCompletionsRequest,
-  ChatCompletionsResponse,
-  Model,
-  ModelsListResponse,
+import {
+  ChatCompletionsResponseSchema,
+  ModelsListResponseSchema,
+  type ChatCompletionsRequest,
+  type ChatCompletionsResponse,
+  type Model,
 } from "../../schemas/openai";
 import { Result } from "../../type/result";
 import {
@@ -86,15 +87,34 @@ export class OpenAIProviderClient implements ProviderClient {
       model: request.model,
     });
     try {
-      const response = await this.client.post<ChatCompletionsResponse>(
+      const response = await this.client.post<unknown>(
         "/chat/completions",
         request
       );
+
+      // Validate response structure with Zod
+      const validationResult = ChatCompletionsResponseSchema.safeParse(
+        response.data
+      );
+      if (!validationResult.success) {
+        logger.error("Invalid OpenAI response format", {
+          name: this.name,
+          model: request.model,
+          errors: validationResult.error.issues,
+          responseData: JSON.stringify(response.data),
+        });
+        return Result<ChatCompletionsResponse>(
+          new Error(
+            `Invalid response format from OpenAI API: ${validationResult.error.message}`
+          )
+        );
+      }
+
       logger.debug("OpenAI completion request succeeded", {
         name: this.name,
         model: request.model,
       });
-      return Result<ChatCompletionsResponse>(response.data);
+      return Result<ChatCompletionsResponse>(validationResult.data);
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data
@@ -164,11 +184,28 @@ export class OpenAIProviderClient implements ProviderClient {
   private async fetchModels(): Promise<Result<ModelsList>> {
     logger.debug("Fetching models from OpenAI", { name: this.name });
     try {
-      const response = await this.client.get<ModelsListResponse>("/models");
+      const response = await this.client.get<unknown>("/models");
+
+      // Validate response structure with Zod
+      const validationResult = ModelsListResponseSchema.safeParse(
+        response.data
+      );
+      if (!validationResult.success) {
+        logger.error("Invalid OpenAI models response format", {
+          name: this.name,
+          errors: validationResult.error.issues,
+          responseData: JSON.stringify(response.data),
+        });
+        return Result<ModelsList>(
+          new Error(
+            `Invalid response format from OpenAI API: ${validationResult.error.message}`
+          )
+        );
+      }
 
       // Convert OpenAI models format to our ModelsList format
       // ModelInfo allows additional fields via [key: string]: unknown
-      const modelsList: ModelsList = response.data.data.map(
+      const modelsList: ModelsList = validationResult.data.data.map(
         (model: Model): ModelInfo => {
           // Model already has id, created, owned_by, and other fields
           // ModelInfo interface allows all fields via [key: string]: unknown
