@@ -6,11 +6,10 @@ import {
   OpenAIErrorSchema,
   type ChatCompletionsRequest,
   type ChatCompletionsResponse,
-  type Model,
+  type ModelsListResponse,
 } from "../../schemas/openai";
 import { Result } from "../../type/result";
 import {
-  type ModelInfo,
   type ModelsList,
   type ProviderClient,
   type TypedProviderConfig,
@@ -93,41 +92,10 @@ export class OpenAIProviderClient implements ProviderClient {
         request
       );
 
-      // Check if response is an error response first
-      const errorCheck = OpenAIErrorSchema.safeParse(response.data);
-      if (errorCheck.success) {
-        const errorData = errorCheck.data.error;
-        logger.error("OpenAI API returned error response", {
-          name: this.name,
-          model: request.model,
-          errorMessage: errorData.message,
-          errorType: errorData.type,
-          errorCode: errorData.code,
-        });
+      const { err, data } = this.validateCompletion(response, request.model);
+      if (err || !data) {
         return Result<ChatCompletionsResponse>(
-          new Error(
-            `OpenAI API error: ${errorData.type} - ${errorData.message}${
-              errorData.code ? ` (code: ${errorData.code})` : ""
-            }`
-          )
-        );
-      }
-
-      // Validate response structure with Zod
-      const validationResult = ChatCompletionsResponseSchema.safeParse(
-        response.data
-      );
-      if (!validationResult.success) {
-        logger.error("Invalid OpenAI response format", {
-          name: this.name,
-          model: request.model,
-          errors: validationResult.error.issues,
-          responseData: JSON.stringify(response.data),
-        });
-        return Result<ChatCompletionsResponse>(
-          new Error(
-            `Invalid response format from OpenAI API: ${validationResult.error.message}`
-          )
+          new Error(`Failed to validate completion response: ${err?.message}`)
         );
       }
 
@@ -135,7 +103,7 @@ export class OpenAIProviderClient implements ProviderClient {
         name: this.name,
         model: request.model,
       });
-      return Result<ChatCompletionsResponse>(validationResult.data);
+      return Result<ChatCompletionsResponse>(data);
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data
@@ -207,38 +175,18 @@ export class OpenAIProviderClient implements ProviderClient {
     try {
       const response = await this.client.get<unknown>("/models");
 
-      // Validate response structure with Zod
-      const validationResult = ModelsListResponseSchema.safeParse(
-        response.data
-      );
-      if (!validationResult.success) {
-        logger.error("Invalid OpenAI models response format", {
-          name: this.name,
-          errors: validationResult.error.issues,
-          responseData: JSON.stringify(response.data),
-        });
+      const { err, models } = this.validateModels(response);
+      if (err || !models || !models.data) {
         return Result<ModelsList>(
-          new Error(
-            `Invalid response format from OpenAI API: ${validationResult.error.message}`
-          )
+          new Error(`Failed to validate models response: ${err?.message}`)
         );
       }
 
-      // Convert OpenAI models format to our ModelsList format
-      // ModelInfo allows additional fields via [key: string]: unknown
-      const modelsList: ModelsList = validationResult.data.data.map(
-        (model: Model): ModelInfo => {
-          // Model already has id, created, owned_by, and other fields
-          // ModelInfo interface allows all fields via [key: string]: unknown
-          return model as ModelInfo;
-        }
-      );
-
       logger.debug("Successfully fetched models from OpenAI", {
         name: this.name,
-        modelCount: modelsList.length,
+        modelCount: models.data.length,
       });
-      return Result<ModelsList>(modelsList);
+      return Result<ModelsList>(models.data);
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data
@@ -267,5 +215,175 @@ export class OpenAIProviderClient implements ProviderClient {
           : new Error(`Failed to fetch models: ${String(error)}`)
       );
     }
+  }
+
+  /**
+   * Validate completion response
+   * Checks in order: error response body -> non-2xx status -> Zod validation
+   * @private
+   */
+  private validateCompletion(
+    response: { status: number; data: unknown },
+    model: string
+  ): Result<ChatCompletionsResponse> {
+    // Check 1: Non-2xx status code with error response body
+    if (response.status < 200 || response.status >= 300) {
+      const errorCheck = OpenAIErrorSchema.safeParse(response.data);
+      if (errorCheck.success) {
+        const errorData = errorCheck.data.error;
+        logger.error("OpenAI API returned error status with error body", {
+          name: this.name,
+          model,
+          status: response.status,
+          errorMessage: errorData.message,
+          errorType: errorData.type,
+          errorCode: errorData.code,
+        });
+        return Result<ChatCompletionsResponse>(
+          new Error(
+            `OpenAI API error (${response.status}): ${errorData.type} - ${
+              errorData.message
+            }${errorData.code ? ` (code: ${errorData.code})` : ""}`
+          )
+        );
+      }
+      // Non-standard error format
+      const errorMessage =
+        typeof response.data === "object" && response.data !== null
+          ? JSON.stringify(response.data)
+          : String(response.data);
+      logger.error("OpenAI API returned non-2xx status code", {
+        name: this.name,
+        model,
+        status: response.status,
+        error: errorMessage,
+      });
+      return Result<ChatCompletionsResponse>(
+        new Error(
+          `OpenAI API returned status ${response.status}: ${errorMessage}`
+        )
+      );
+    }
+
+    // Check 2: Response body contains error field (some proxies return 200 with error)
+    const errorCheck = OpenAIErrorSchema.safeParse(response.data);
+    if (errorCheck.success) {
+      const errorData = errorCheck.data.error;
+      logger.error("OpenAI API returned error response in body", {
+        name: this.name,
+        model,
+        errorMessage: errorData.message,
+        errorType: errorData.type,
+        errorCode: errorData.code,
+      });
+      return Result<ChatCompletionsResponse>(
+        new Error(
+          `OpenAI API error: ${errorData.type} - ${errorData.message}${
+            errorData.code ? ` (code: ${errorData.code})` : ""
+          }`
+        )
+      );
+    }
+
+    // Check 3: Validate response structure with Zod
+    const respCheck = ChatCompletionsResponseSchema.safeParse(response.data);
+    if (!respCheck.success) {
+      logger.error("Invalid OpenAI response format", {
+        name: this.name,
+        model,
+        errors: respCheck.error.issues,
+        responseData: JSON.stringify(response.data),
+      });
+      return Result<ChatCompletionsResponse>(
+        new Error(
+          `Invalid response format from OpenAI API: ${respCheck.error.message}`
+        )
+      );
+    }
+
+    return Result<ChatCompletionsResponse>(respCheck.data);
+  }
+
+  /**
+   * Validate models response
+   * Checks in order: error response body -> non-2xx status -> Zod validation
+   * @private
+   */
+  private validateModels(response: {
+    status: number;
+    data: unknown;
+  }): Result<ModelsListResponse> {
+    // Check 1: Non-2xx status code with error response body
+    if (response.status < 200 || response.status >= 300) {
+      const errorCheck = OpenAIErrorSchema.safeParse(response.data);
+      if (errorCheck.success) {
+        const errorData = errorCheck.data.error;
+        logger.error("OpenAI API returned error status with error body", {
+          name: this.name,
+          status: response.status,
+          errorMessage: errorData.message,
+          errorType: errorData.type,
+          errorCode: errorData.code,
+        });
+        return Result<ModelsListResponse>(
+          new Error(
+            `OpenAI API error (${response.status}): ${errorData.type} - ${
+              errorData.message
+            }${errorData.code ? ` (code: ${errorData.code})` : ""}`
+          )
+        );
+      }
+      // Non-standard error format
+      const errorMessage =
+        typeof response.data === "object" && response.data !== null
+          ? JSON.stringify(response.data)
+          : String(response.data);
+      logger.error("OpenAI API returned non-2xx status code", {
+        name: this.name,
+        status: response.status,
+        error: errorMessage,
+      });
+      return Result<ModelsListResponse>(
+        new Error(
+          `OpenAI API returned status ${response.status}: ${errorMessage}`
+        )
+      );
+    }
+
+    // Check 2: Response body contains error field (some proxies return 200 with error)
+    const errorCheck = OpenAIErrorSchema.safeParse(response.data);
+    if (errorCheck.success) {
+      const errorData = errorCheck.data.error;
+      logger.error("OpenAI API returned error response in body", {
+        name: this.name,
+        errorMessage: errorData.message,
+        errorType: errorData.type,
+        errorCode: errorData.code,
+      });
+      return Result<ModelsListResponse>(
+        new Error(
+          `OpenAI API error: ${errorData.type} - ${errorData.message}${
+            errorData.code ? ` (code: ${errorData.code})` : ""
+          }`
+        )
+      );
+    }
+
+    // Check 3: Validate response structure with Zod
+    const respCheck = ModelsListResponseSchema.safeParse(response.data);
+    if (!respCheck.success) {
+      logger.error("Invalid OpenAI models response format", {
+        name: this.name,
+        errors: respCheck.error.issues,
+        responseData: JSON.stringify(response.data),
+      });
+      return Result<ModelsListResponse>(
+        new Error(
+          `Invalid response format from OpenAI API: ${respCheck.error.message}`
+        )
+      );
+    }
+
+    return Result<ModelsListResponse>(respCheck.data);
   }
 }
