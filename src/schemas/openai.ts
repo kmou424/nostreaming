@@ -139,6 +139,16 @@ export const ModelsListResponseSchema = z.object({
   data: z.array(ModelSchema),
 });
 
+// OpenAI Error Response Schema
+export const OpenAIErrorSchema = z.object({
+  error: z.object({
+    message: z.string(),
+    type: z.string(),
+    param: z.string().nullable().optional(),
+    code: z.string().nullable().optional(),
+  }),
+});
+
 // Type exports for TypeScript
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatCompletionsRequest = z.infer<

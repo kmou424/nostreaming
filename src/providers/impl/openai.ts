@@ -3,6 +3,7 @@ import { logger } from "../../logger";
 import {
   ChatCompletionsResponseSchema,
   ModelsListResponseSchema,
+  OpenAIErrorSchema,
   type ChatCompletionsRequest,
   type ChatCompletionsResponse,
   type Model,
@@ -91,6 +92,26 @@ export class OpenAIProviderClient implements ProviderClient {
         "/chat/completions",
         request
       );
+
+      // Check if response is an error response first
+      const errorCheck = OpenAIErrorSchema.safeParse(response.data);
+      if (errorCheck.success) {
+        const errorData = errorCheck.data.error;
+        logger.error("OpenAI API returned error response", {
+          name: this.name,
+          model: request.model,
+          errorMessage: errorData.message,
+          errorType: errorData.type,
+          errorCode: errorData.code,
+        });
+        return Result<ChatCompletionsResponse>(
+          new Error(
+            `OpenAI API error: ${errorData.type} - ${errorData.message}${
+              errorData.code ? ` (code: ${errorData.code})` : ""
+            }`
+          )
+        );
+      }
 
       // Validate response structure with Zod
       const validationResult = ChatCompletionsResponseSchema.safeParse(
