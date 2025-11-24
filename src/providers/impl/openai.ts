@@ -89,7 +89,10 @@ export class OpenAIProviderClient implements ProviderClient {
     try {
       const response = await this.client.post<unknown>(
         "/chat/completions",
-        request
+        request,
+        {
+          signal: AbortSignal.timeout(600000),
+        }
       );
 
       const { err, data } = this.validateCompletion(response, request.model);
