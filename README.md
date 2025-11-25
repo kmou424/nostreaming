@@ -7,6 +7,8 @@
 - 🔄 **多提供商支持**: 支持 OpenAI 等(咕咕咕)上游 LLM 提供商
 - 🔌 **OpenAI 兼容接口**: 提供标准的 OpenAI API 接口，无需修改客户端代码
 - 📡 **Fake-Streaming**: 实现伪流式传输，客户端通过 SSE 连接，后端发送非流式请求到上游
+- 🔄 **自动重试**: 空响应检测并自动重试请求
+- 🕵️‍♂️ **请求内容伪造**: 伪造请求内容，以避免检测（Thanks to [hajimi](https://github.com/wyeeeee/hajimi/blob/3712ba496c9d16a62f4017fbeb41d6d3bd36bb5b/app/services/gemini.py#L516)）
 - 🔐 **API 密钥认证**: 支持 Bearer token 认证
 - 🎯 **模型过滤**: 支持白名单/黑名单模式过滤模型
 - 🐳 **Docker 支持**: 提供完整的 Docker 部署方案
