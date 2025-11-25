@@ -14,8 +14,14 @@ RUN bun install --frozen-lockfile
 
 # Build stage (optional, for compiled output if needed)
 FROM deps AS build
-# Copy source code
+# Install git temporarily to get revision
+RUN apt-get update && apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
+# Copy source code (including .git for revision detection in build stage)
 COPY . .
+# Get Git revision and write to VERSION file for runtime use
+# This allows the app to know its version even without .git directory in final image
+RUN git rev-parse --short HEAD > VERSION 2>/dev/null || echo "unknown" > VERSION
 # Build is optional since we're running with bun directly
 # RUN bun run build || true
 
@@ -40,6 +46,8 @@ RUN bun install --frozen-lockfile --production
 # Copy application source
 COPY --chown=appuser:appuser src ./src
 COPY --chown=appuser:appuser tsconfig.json ./
+# Copy VERSION file from build stage
+COPY --from=build --chown=appuser:appuser /app/VERSION ./VERSION
 
 # Copy config example (user should mount their own config.toml at runtime)
 COPY --chown=appuser:appuser config.toml.example ./config.toml.example

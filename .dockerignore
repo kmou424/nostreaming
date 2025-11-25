@@ -21,7 +21,7 @@ report.*.json
 !.env.example
 
 # Git
-.git
+# .git (included in build stage)
 .gitignore
 .gitattributes
 
