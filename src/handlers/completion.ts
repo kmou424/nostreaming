@@ -19,7 +19,7 @@ async function autoRetryCompletion(
   request: ChatCompletionsRequest
 ): Promise<Result<ChatCompletionsResponse>> {
   const config = getConfig();
-  const maxRetries = config.app.maxRetries;
+  const maxRetries = config.advanced.maxRetries;
   for (let i = 1; i <= maxRetries; i++) {
     const { response, err } = await ProviderRouter.completion(request);
     if (err || !response) {
@@ -61,7 +61,7 @@ export async function handleCompletion(
   const config = getConfig();
 
   // Spoof request content if enabled
-  if (config.app.contentSpoof) {
+  if (config.advanced.contentSpoof) {
     request = spoofRequestContent(request);
   }
 
@@ -113,7 +113,7 @@ async function createFakeStream(
 ): Promise<ReadableStream> {
   const encoder = new TextEncoder();
   const config = getConfig();
-  const FAKE_STREAM_INTERVAL = config.app.fakeStreamInterval; // milliseconds
+  const FAKE_STREAM_INTERVAL = config.advanced.fakeStreamInterval; // milliseconds
 
   // Generate a temporary response ID and timestamp for empty data packets
   const tempId = `chatcmpl-${Date.now()}`;

@@ -4,8 +4,11 @@ import { z } from "zod";
 export const AppConfigSchema = z.object({
   host: z.string().default("0.0.0.0"),
   port: z.number().int().positive().default(3000),
-  fakeStreamInterval: z.number().int().positive().default(500), // milliseconds
   keys: z.array(z.string().min(1)), // API keys for authentication
+});
+
+export const AdvancedConfigSchema = z.object({
+  fakeStreamInterval: z.number().int().positive().default(500), // milliseconds
   maxRetries: z.number().int().positive().default(3), // retries for upstream requests
   contentSpoof: z.boolean().default(false), // whether to spoof content in request
 });
@@ -36,12 +39,14 @@ export const ProviderConfigSchema = z
 // Root configuration schema
 export const ConfigSchema = z.object({
   app: AppConfigSchema,
+  advanced: AdvancedConfigSchema.default(AdvancedConfigSchema.parse({})),
   logging: LoggingConfigSchema.optional(),
   providers: z.record(z.string(), ProviderConfigSchema).optional(),
 });
 
 // Type exports
 export type AppConfig = z.infer<typeof AppConfigSchema>;
+export type AdvancedConfig = z.infer<typeof AdvancedConfigSchema>;
 export type LoggingConfig = z.infer<typeof LoggingConfigSchema>;
 export type ProviderFilter = z.infer<typeof ProviderFilterSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
