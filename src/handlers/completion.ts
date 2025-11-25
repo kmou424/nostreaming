@@ -128,20 +128,25 @@ async function createFakeStream(
       let isCompleted = false;
 
       // Helper function to safely enqueue data
+      // Even if isCancelled is true, we still try to send (in case response arrived after cancel)
       const safeEnqueue = (data: Uint8Array): boolean => {
-        if (isCompleted || isCancelled) {
+        if (isCompleted) {
           return false;
         }
+        // If already cancelled, still try to send (might succeed if controller not closed yet)
         try {
           controller.enqueue(data);
           return true;
         } catch (error) {
           // Controller might be closed by client
           if (error instanceof TypeError && error.message.includes("closed")) {
+            if (!isCancelled) {
+              // Only log if we didn't already know it was cancelled
+              logger.error("Client disconnected, controller closed", {
+                model: request.model,
+              });
+            }
             isCancelled = true;
-            logger.debug("Client disconnected, controller closed", {
-              model: request.model,
-            });
             return false;
           }
           throw error;
@@ -232,10 +237,12 @@ async function createFakeStream(
           totalTokens: response.usage.total_tokens,
         });
 
-        // Check if client disconnected before sending response
+        // Try to send response even if client disconnected
+        // safeEnqueue will handle the case where controller is already closed
         if (isCancelled) {
-          logger.error("Client disconnected before sending response");
-          return;
+          logger.warn("Client disconnected, but attempting to send response", {
+            model: request.model,
+          });
         }
 
         // Send initial chunk with role (if present)
