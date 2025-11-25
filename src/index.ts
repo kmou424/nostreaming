@@ -4,8 +4,11 @@ import { logger } from "./logger";
 import { ProviderManager } from "./providers/manager";
 import { HealthRoutes } from "./routes/health";
 import { OpenAIRoutes } from "./routes/openai";
+import { getGitRevision } from "./utils/git";
 
 import "./providers/impl";
+
+logger.info("Starting application", { version: getGitRevision() });
 
 // Load and initialize global configuration
 logger.info("Loading configuration...");
