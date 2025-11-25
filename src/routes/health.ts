@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import { getLocalISOString } from "../utils/time";
 
 /**
  * Health check route
@@ -8,7 +9,7 @@ import { Elysia } from "elysia";
 export const HealthRoutes = new Elysia({ prefix: "/health" }).get("/", () => {
   return {
     status: "ok",
-    timestamp: new Date().toISOString(),
+    timestamp: getLocalISOString(),
     service: "nostreaming",
   };
 });

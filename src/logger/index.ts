@@ -1,4 +1,5 @@
 import { getConfig } from "../config";
+import { getLocalISOString } from "../utils/time";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -80,7 +81,7 @@ function formatMessage(
   message: string,
   ...args: unknown[]
 ): string {
-  const timestamp = new Date().toISOString();
+  const timestamp = getLocalISOString();
   const location = getCallerLocation();
   const prefix = `[${timestamp}] [${level.toUpperCase()}] [${location}]`;
 
