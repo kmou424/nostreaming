@@ -134,9 +134,6 @@ async function createFakeStream(
         }
         try {
           controller.enqueue(data);
-          logger.debug("Enqueued data", {
-            length: data.length,
-          });
           return true;
         } catch (error) {
           // Controller might be closed by client
@@ -179,6 +176,7 @@ async function createFakeStream(
         if (safeEnqueue(encoder.encode(emptyData))) {
           logger.debug("Sent empty data packet (keep-alive)", {
             model: request.model,
+            length: emptyData.length,
           });
         }
       };
@@ -216,9 +214,7 @@ async function createFakeStream(
                 controller.close();
               } catch (closeError) {
                 // Ignore close errors if already closed
-                logger.debug("Controller already closed", {
-                  model: request.model,
-                });
+                logger.error("Controller already closed");
               }
             }
           }
@@ -238,9 +234,7 @@ async function createFakeStream(
 
         // Check if client disconnected before sending response
         if (isCancelled) {
-          logger.debug("Client disconnected before sending response", {
-            model: request.model,
-          });
+          logger.error("Client disconnected before sending response");
           return;
         }
 
@@ -264,6 +258,11 @@ async function createFakeStream(
           })}\n\n`;
           if (!safeEnqueue(encoder.encode(roleChunk))) {
             return;
+          } else {
+            logger.debug("Sent role chunk", {
+              model: request.model,
+              length: roleChunk.length,
+            });
           }
         }
 
@@ -284,10 +283,15 @@ async function createFakeStream(
         })}\n\n`;
         if (!safeEnqueue(encoder.encode(contentChunk))) {
           return;
+        } else {
+          logger.debug("Sent content chunk", {
+            model: request.model,
+            length: contentChunk.length,
+          });
         }
 
-        // Send final chunk with finish_reason
-        const finalChunk = `data: ${JSON.stringify({
+        // Send finish chunk with finish_reason
+        const finishChunk = `data: ${JSON.stringify({
           id: response.id,
           object: "chat.completion.chunk",
           created: response.created,
@@ -298,22 +302,30 @@ async function createFakeStream(
             finish_reason: choice.finish_reason,
           })),
         })}\n\n`;
-        if (!safeEnqueue(encoder.encode(finalChunk))) {
+        if (!safeEnqueue(encoder.encode(finishChunk))) {
           return;
+        } else {
+          logger.debug("Sent finish reason", {
+            model: request.model,
+            length: finishChunk.length,
+          });
         }
 
         // Send [DONE] marker
         if (!safeEnqueue(encoder.encode("data: [DONE]\n\n"))) {
           return;
+        } else {
+          logger.debug("Sent [DONE] marker", {
+            model: request.model,
+            length: "[DONE]".length,
+          });
         }
         isCompleted = true;
         try {
           controller.close();
         } catch (closeError) {
           // Ignore close errors if already closed
-          logger.debug("Controller already closed", {
-            model: request.model,
-          });
+          logger.error("Controller already closed");
         }
       } catch (error) {
         // Stop sending empty data packets on error
@@ -339,9 +351,7 @@ async function createFakeStream(
               controller.close();
             } catch (closeError) {
               // Ignore close errors if already closed
-              logger.debug("Controller already closed", {
-                model: request.model,
-              });
+              logger.error("Controller already closed");
             }
           }
         }
@@ -354,9 +364,7 @@ async function createFakeStream(
         clearInterval(fakeStreamTimer);
         fakeStreamTimer = null;
       }
-      logger.debug("Client disconnected, stream cancelled", {
-        model: request.model,
-      });
+      logger.error("Client disconnected, stream cancelled");
     },
   });
 }
