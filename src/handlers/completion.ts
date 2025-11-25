@@ -6,6 +6,7 @@ import type {
   ChatCompletionsResponse,
 } from "../schemas/openai";
 import { Result } from "../type/result";
+import { spoofRequestContent } from "../utils";
 
 /**
  * Automatically retry completion request up to max retries
@@ -57,6 +58,13 @@ async function autoRetryCompletion(
 export async function handleCompletion(
   request: ChatCompletionsRequest
 ): Promise<ChatCompletionsResponse | ReadableStream> {
+  const config = getConfig();
+
+  // Spoof request content if enabled
+  if (config.app.contentSpoof) {
+    request = spoofRequestContent(request);
+  }
+
   // If stream is false or undefined, return normal response
   if (!request.stream) {
     logger.info("Starting non-streaming completion request", {

@@ -7,6 +7,7 @@ export const AppConfigSchema = z.object({
   fakeStreamInterval: z.number().int().positive().default(500), // milliseconds
   keys: z.array(z.string().min(1)), // API keys for authentication
   maxRetries: z.number().int().positive().default(3), // retries for upstream requests
+  contentSpoof: z.boolean().default(false), // whether to spoof content in request
 });
 
 // Logging configuration schema
