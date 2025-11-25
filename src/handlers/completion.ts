@@ -5,6 +5,46 @@ import type {
   ChatCompletionsRequest,
   ChatCompletionsResponse,
 } from "../schemas/openai";
+import { Result } from "../type/result";
+
+/**
+ * Automatically retry completion request up to max retries
+ * @param request Chat completion request
+ * @returns Promise that resolves with Result<ChatCompletionsResponse>
+ * - If successful: Result with data containing the response, err = null
+ * - If failed: Result with err containing the error
+ */
+async function autoRetryCompletion(
+  request: ChatCompletionsRequest
+): Promise<Result<ChatCompletionsResponse>> {
+  const config = getConfig();
+  const maxRetries = config.app.maxRetries;
+  for (let i = 1; i <= maxRetries; i++) {
+    const { response, err } = await ProviderRouter.completion(request);
+    if (err || !response) {
+      logger.error("Completion request failed, trying again...", {
+        model: request.model,
+        error: err?.message,
+        retry: i,
+      });
+      continue;
+    }
+
+    if (response.usage.completion_tokens === 0) {
+      logger.warn(
+        "Completion request returned empty response, trying again...",
+        {
+          model: request.model,
+          retry: i,
+        }
+      );
+      continue;
+    }
+
+    return Result<ChatCompletionsResponse>(response);
+  }
+  return Result<ChatCompletionsResponse>(new Error("Failed after max retries"));
+}
 
 /**
  * Handle POST /v1/chat/completions request
@@ -26,10 +66,10 @@ export async function handleCompletion(
 
     let response: ChatCompletionsResponse | null | undefined;
     let err: Error | null = null;
-    ({ response, err } = await ProviderRouter.completion(request));
+    ({ response, err } = await autoRetryCompletion(request));
 
     if (err || !response) {
-      logger.info("Non-streaming completion request failed", {
+      logger.error("Non-streaming completion request failed", {
         model: request.model,
         messageCount: request.messages.length,
         error: err?.message,
@@ -139,7 +179,7 @@ async function createFakeStream(
         // Request completion from provider (non-streaming)
         let response: ChatCompletionsResponse | null | undefined;
         let err: Error | null = null;
-        ({ response, err } = await ProviderRouter.completion(request));
+        ({ response, err } = await autoRetryCompletion(request));
 
         // Stop sending empty data packets
         if (fakeStreamTimer) {
@@ -148,7 +188,7 @@ async function createFakeStream(
         }
 
         if (err || !response) {
-          logger.info("Fake-streaming completion request failed", {
+          logger.error("Fake-streaming completion request failed", {
             model: request.model,
             messageCount: request.messages.length,
             error: err?.message,
