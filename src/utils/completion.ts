@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 import type { ChatCompletionsRequest } from "../schemas/openai";
 
 function generateRandomContent() {
@@ -20,6 +21,7 @@ function generateRandomContent() {
 export function spoofRequestContent(
   request: ChatCompletionsRequest
 ): ChatCompletionsRequest {
+  logger.info("Spoofing request content");
   return {
     ...request,
     messages: [
