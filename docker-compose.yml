@@ -4,6 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: nostreaming
+    environment:
+      - TZ=Asia/Shanghai
     ports:
       - "3000:3000"
     volumes:
