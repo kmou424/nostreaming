@@ -119,6 +119,78 @@ cp config.toml.example config.toml
 bun run src/index.ts
 ```
 
+## 更新应用
+
+### 1. 拉取最新代码
+
+```bash
+# 拉取最新代码
+git pull
+```
+
+### 2. 按部署方式更新
+
+#### 本地部署
+
+```bash
+# 1. 安装/更新依赖（如果有变更）
+bun install
+
+# 2. 重启服务
+# 如果使用进程管理器（如 PM2），重启进程
+# 如果直接运行，停止旧进程后重新启动
+bun run src/index.ts
+```
+
+#### Docker 部署 - 使用 Docker Compose
+
+```bash
+# 1. 停止并删除旧容器
+docker-compose down
+
+# 2. 删除旧镜像（以本地构建的镜像名为准）
+docker rmi nostreaming:latest
+
+# 3. 重新构建镜像
+docker-compose build
+
+# 4. 启动新容器
+docker-compose up -d
+
+# 5. 查看日志确认更新成功
+docker-compose logs -f
+```
+
+#### Docker 部署 - 使用 Docker
+
+```bash
+# 1. 停止并删除旧容器
+docker stop nostreaming
+docker rm nostreaming
+
+# 2. 删除旧镜像（以本地构建的镜像名为准）
+docker rmi nostreaming:latest
+
+# 3. 重新构建镜像
+docker build -t nostreaming:latest .
+
+# 4. 启动新容器
+docker run -d \
+  --name nostreaming \
+  -p 3000:3000 \
+  -v $(pwd)/config.toml:/app/config.toml:ro \
+  nostreaming:latest
+
+# 5. 查看日志确认更新成功
+docker logs -f nostreaming
+```
+
+**注意**：
+
+- 更新前建议备份 `config.toml` 配置文件
+- 如果配置文件格式有变更，请参考 `config.toml.example` 更新配置
+- 更新后可通过日志中的版本号确认是否更新成功
+
 ## API 使用
 
 ### 健康检查
