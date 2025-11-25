@@ -134,6 +134,9 @@ async function createFakeStream(
         }
         try {
           controller.enqueue(data);
+          logger.debug("Enqueued data", {
+            length: data.length,
+          });
           return true;
         } catch (error) {
           // Controller might be closed by client
