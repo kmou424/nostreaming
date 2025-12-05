@@ -31,7 +31,7 @@ async function autoRetryCompletion(
       continue;
     }
 
-    if (response.usage.completion_tokens === 0) {
+    if (response.usage?.completion_tokens === 0) {
       logger.warn(
         "Completion request returned empty response, trying again...",
         {
@@ -88,9 +88,9 @@ export async function handleCompletion(
     }
     logger.info("Non-streaming completion request succeeded", {
       model: request.model,
-      promptTokens: response.usage.prompt_tokens,
-      completionTokens: response.usage.completion_tokens,
-      totalTokens: response.usage.total_tokens,
+      promptTokens: response.usage?.prompt_tokens ?? "unknown",
+      completionTokens: response.usage?.completion_tokens ?? "unknown",
+      totalTokens: response.usage?.total_tokens ?? "unknown",
     });
     return response;
   }
@@ -232,9 +232,9 @@ async function createFakeStream(
         // Log success with token information
         logger.info("Fake-streaming completion request succeeded", {
           model: request.model,
-          promptTokens: response.usage.prompt_tokens,
-          completionTokens: response.usage.completion_tokens,
-          totalTokens: response.usage.total_tokens,
+          promptTokens: response.usage?.prompt_tokens ?? "unknown",
+          completionTokens: response.usage?.completion_tokens ?? "unknown",
+          totalTokens: response.usage?.total_tokens ?? "unknown",
         });
 
         // Try to send response even if client disconnected
