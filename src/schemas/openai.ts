@@ -95,11 +95,13 @@ export const ChatChoiceSchema = z.object({
   }, z.enum(["stop", "length", "function_call", "tool_calls", "content_filter"]).nullable()),
 });
 
-export const UsageSchema = z.object({
-  prompt_tokens: z.number().int(),
-  completion_tokens: z.number().int(),
-  total_tokens: z.number().int(),
-});
+export const UsageSchema = z
+  .object({
+    prompt_tokens: z.number().int(),
+    completion_tokens: z.number().int(),
+    total_tokens: z.number().int(),
+  })
+  .optional();
 
 export const ChatCompletionsResponseSchema = z.object({
   id: z.string(),
