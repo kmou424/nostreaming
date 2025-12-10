@@ -42,6 +42,22 @@ async function autoRetryCompletion(
       continue;
     }
 
+    // fallback: 回退到计算内容长度和校验
+    const respContentLength = response.choices.reduce(
+      (acc, choice) => acc + (choice.message.content?.length ?? 0),
+      0
+    );
+    if (respContentLength === 0) {
+      logger.warn(
+        "Completion request returned empty content, trying again...",
+        {
+          model: request.model,
+          retry: i,
+        }
+      );
+      continue;
+    }
+
     return Result<ChatCompletionsResponse>(response);
   }
   return Result<ChatCompletionsResponse>(new Error("Failed after max retries"));
