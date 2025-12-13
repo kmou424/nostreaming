@@ -131,10 +131,6 @@ async function createFakeStream(
   const config = getConfig();
   const FAKE_STREAM_INTERVAL = config.advanced.fakeStreamInterval; // milliseconds
 
-  // Generate a temporary response ID and timestamp for empty data packets
-  const tempId = `chatcmpl-${Date.now()}`;
-  const tempCreated = Math.floor(Date.now() / 1000);
-
   // Shared state for cleanup
   let fakeStreamTimer: ReturnType<typeof setInterval> | null = null;
   let isCancelled = false;
@@ -169,8 +165,8 @@ async function createFakeStream(
         }
       };
 
-      // Send empty data packet (OpenAI SSE format)
-      const sendEmptyData = () => {
+      // Send standard SSE keep-alive packet
+      const sendKeepAlive = () => {
         if (isCompleted || isCancelled) {
           if (fakeStreamTimer) {
             clearInterval(fakeStreamTimer);
@@ -178,32 +174,18 @@ async function createFakeStream(
           }
           return;
         }
-        // Send empty content data packet in OpenAI streaming format
-        const emptyData = `data: ${JSON.stringify({
-          id: tempId,
-          object: "chat.completion.chunk",
-          created: tempCreated,
-          model: request.model,
-          choices: [
-            {
-              index: 0,
-              delta: {
-                content: "",
-              },
-              finish_reason: null,
-            },
-          ],
-        })}\n\n`;
-        if (safeEnqueue(encoder.encode(emptyData))) {
-          logger.debug("Sent empty data packet (keep-alive)", {
+        // Send standard SSE keep-alive comment (client will ignore this)
+        const keepAlive = `: keep-alive\n\n`;
+        if (safeEnqueue(encoder.encode(keepAlive))) {
+          logger.debug("Sent keep-alive packet", {
             model: request.model,
-            length: emptyData.length,
+            length: keepAlive.length,
           });
         }
       };
 
       // Start sending empty data packets periodically
-      fakeStreamTimer = setInterval(sendEmptyData, FAKE_STREAM_INTERVAL);
+      fakeStreamTimer = setInterval(sendKeepAlive, FAKE_STREAM_INTERVAL);
 
       try {
         // Request completion from provider (non-streaming)
