@@ -33,7 +33,7 @@ export type ModelAlias = string;
  */
 export interface ModelInfo {
   id: string;
-  created?: number;
+  created?: number | null;
   owned_by?: string;
   [key: string]: unknown; // Allow additional provider-specific fields
 }

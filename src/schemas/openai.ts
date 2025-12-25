@@ -116,7 +116,7 @@ export const ChatCompletionsResponseSchema = z.object({
 export const ModelSchema = z.object({
   id: z.string(),
   object: z.literal("model"),
-  created: z.number().int(),
+  created: z.number().int().nullable(),
   owned_by: z.string(),
   permission: z
     .array(
