@@ -289,20 +289,44 @@ async function createFakeStream(
           }
         }
 
-        // Send content chunk with full content
+        // Send content chunk with full content, tool_calls, and function_call (if present)
         // In fake-streaming, we send the full content at once
         const contentChunk = `data: ${JSON.stringify({
           id: response.id,
           object: "chat.completion.chunk",
           created: response.created,
           model: response.model,
-          choices: response.choices.map((choice) => ({
-            index: choice.index,
-            delta: {
-              content: choice.message.content,
-            },
-            finish_reason: null,
-          })),
+          choices: response.choices.map((choice) => {
+            const delta: {
+              content?: string | null;
+              tool_calls?: typeof choice.message.tool_calls;
+              function_call?: typeof choice.message.function_call;
+            } = {};
+
+            // Include content if present (may be null for tool-only responses)
+            if (choice.message.content !== undefined) {
+              delta.content = choice.message.content;
+            }
+
+            // Include tool_calls if present (new format)
+            if (
+              choice.message.tool_calls &&
+              choice.message.tool_calls.length > 0
+            ) {
+              delta.tool_calls = choice.message.tool_calls;
+            }
+
+            // Include function_call if present (old format, for backward compatibility)
+            if (choice.message.function_call) {
+              delta.function_call = choice.message.function_call;
+            }
+
+            return {
+              index: choice.index,
+              delta,
+              finish_reason: null,
+            };
+          }),
         })}\n\n`;
         if (!safeEnqueue(encoder.encode(contentChunk))) {
           return;
