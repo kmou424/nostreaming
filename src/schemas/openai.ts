@@ -5,6 +5,7 @@ export const ChatMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant", "function", "tool"]),
   content: z.string().nullable(),
   name: z.string().optional(),
+  tool_call_id: z.string().optional(), // Required when role is "tool"
   function_call: z
     .object({
       name: z.string(),

@@ -42,14 +42,42 @@ async function autoRetryCompletion(
       continue;
     }
 
-    // fallback: 回退到计算内容长度和校验
-    const respContentLength = response.choices.reduce(
-      (acc, choice) => acc + (choice.message.content?.length ?? 0),
-      0
-    );
-    if (respContentLength === 0) {
+    // Check if response has valid choices array
+    if (
+      !response.choices ||
+      !Array.isArray(response.choices) ||
+      response.choices.length === 0
+    ) {
       logger.warn(
-        "Completion request returned empty content, trying again...",
+        "Completion request returned invalid or empty choices array, trying again...",
+        {
+          model: request.model,
+          retry: i,
+        }
+      );
+      continue;
+    }
+
+    // Check if response has valid content or tool calls
+    const hasValidResponse = response.choices.some((choice) => {
+      // Valid if has content
+      if (choice.message.content && choice.message.content.length > 0) {
+        return true;
+      }
+      // Valid if has tool_calls
+      if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
+        return true;
+      }
+      // Valid if has function_call (old format)
+      if (choice.message.function_call) {
+        return true;
+      }
+      return false;
+    });
+
+    if (!hasValidResponse) {
+      logger.warn(
+        "Completion request returned empty content and no tool calls, trying again...",
         {
           model: request.model,
           retry: i,
